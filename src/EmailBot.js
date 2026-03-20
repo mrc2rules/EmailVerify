@@ -1,3 +1,4 @@
+require('dotenv').config();
 const Discord = require('discord.js');
 const {token, clientId} = require('../config/config.json');
 const database = require('./database/Database.js')
@@ -19,6 +20,7 @@ const UserTimeout = require("./UserTimeout");
 const md5hash = require("./crypto/Crypto");
 const EmailUser = require("./database/EmailUser");
 const { MessageFlags } = require('discord.js');
+const TelegramListener = require("./telegram/TelegramListener")
 
 const bot = new Discord.Client({
     intents: [
@@ -36,6 +38,7 @@ const serverStatsAPI = new ServerStatsAPI(bot, false)
 bot.serverStatsAPI = serverStatsAPI
 
 let emailNotify = true
+let telegramListener = null
 
 module.exports.userGuilds = userGuilds = new Map()
 
@@ -198,6 +201,16 @@ bot.once('clientReady', async () => {
         serverStatsAPI.app.listen(serverStatsAPI.port, () => {
             console.log(`App listening on port ${serverStatsAPI.port}!`)
         })
+        
+        // Initialize Telegram listener (only on primary shard)
+        telegramListener = new TelegramListener(bot, process.env.DISCORD_EVENT_CHANNEL_ID)
+        const tgReady = await telegramListener.initialize()
+        if (tgReady) {
+            console.log('✅ Telegram listener started successfully')
+        } else {
+            console.log('❌ Failed to start Telegram listener')
+        }
+        
         rl = readline.createInterface(stdin, stdout)
         rl.on("line", async command => {
             switch (command) {
@@ -647,7 +660,12 @@ bot.on('interactionCreate', async interaction => {
     })
 });
 
-// CLI listener is initialized in ready() only on primary shard
+process.on('SIGINT', async () => {
+    if (telegramListener) {
+        await telegramListener.stop()
+    }
+    process.exit(0)
+})
 
 bot.login(token).catch((e) => {
     console.log("Failed to login: " + e.toString())

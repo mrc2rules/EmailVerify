@@ -5,4 +5,15 @@ config/config.json
 config/bot.db
 src/bot.db
 config/ServerStats.json
-discord-verify.txt
+discord-verify.txtsrc/.env
+*.save
+senode_modules
+package-lock.json
+config/config.json
+.idea
+config/bot.db
+src/bot.db
+config/ServerStats.json
+discord-verify.txtsrc/.env
+*.save
+session.session
