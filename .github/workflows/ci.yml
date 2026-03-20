@@ -9,7 +9,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: lkaesberg/emailverify
+  IMAGE_NAME: mrc2rules/emailverify
 
 jobs:
   docker-nightly:
