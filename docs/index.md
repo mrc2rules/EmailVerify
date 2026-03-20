@@ -1,23 +1,26 @@
-<meta name="description" content= "This Discord Bot allows you to verify clients with the help of their email address. This can be useful when there is some sensitive data on the server which shouldn't be accessed by everyone.">
-<meta name="keywords" content="EmailVerify Discord Bot Lars Kaesberg Email Verify EmailBot">
+<meta name="description" content= "This Discord Bot allows you to verify Discord users with the help of their email address. This can be useful when there is some sensitive data on the server that shouldn't be accessed by everyone.">
+<meta name="keywords" content="EmailVerify Discord Bot Lars Kaesberg Email Verify EmailBot managment">
 <meta name="author" content="Lars Kaesberg">
 
 # EmailVerify
 
 ## Built With
 
-<div style="display: -ms-flexbox;     display: -webkit-flex;     display: flex;     -webkit-flex-direction: row;     -ms-flex-direction: row;     flex-direction: row;     -webkit-flex-wrap: wrap;     -ms-flex-wrap: wrap;     flex-wrap: wrap;     -webkit-justify-content: space-around;     -ms-flex-pack: distribute;     justify-content: space-around;     -webkit-align-content: stretch;     -ms-flex-line-pack: stretch;     align-content: stretch;     -webkit-align-items: flex-start;     -ms-flex-align: start;     align-items: flex-start;">
-<a href="https://nodejs.org/en/"><img src="https://chris-noring.gallerycdn.vsassets.io/extensions/chris-noring/node-snippets/1.3.2/1606066290744/Microsoft.VisualStudio.Services.Icons.Default" alt="NodeJS" width="64" height="64" title="NodeJS"></a>
-<a href="https://www.npmjs.com/"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Npm-logo.svg/1280px-Npm-logo.svg.png" alt="npm" width="164" height="64" title="npm"></a>
-<a href="https://discord.js.org/#/"><img src="https://discordjs.guide/meta-image.png" alt="DiscordJS" width="64" height="64" title="DiscordJS"></a>
-<a href="https://nodemailer.com/about/"><img src="https://nodemailer.com/nm_logo_200x136.png" alt="Nodemailer" width="94" height="64" title="Nodemailer"></a>
+<div style="display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 24px; margin: 20px 0;">
+<a href="https://discord.com/"><img src="https://raw.githubusercontent.com/lkaesberg/EmailBot/main/images/discord.png" alt="Discord" style="height: 56px; width: auto;" title="Discord"></a>
+<a href="https://nodejs.org/"><img src="https://raw.githubusercontent.com/lkaesberg/EmailBot/main/images/node.png" alt="Node.js" style="height: 56px; width: auto;" title="Node.js"></a>
+<a href="https://www.npmjs.com/"><img src="https://raw.githubusercontent.com/lkaesberg/EmailBot/main/images/npm.png" alt="npm" style="height: 40px; width: auto;" title="npm"></a>
+<a href="https://discord.js.org/"><img src="https://raw.githubusercontent.com/lkaesberg/EmailBot/main/images/djs.png" alt="Discord.js" style="height: 56px; width: auto;" title="Discord.js"></a>
+<a href="https://nodemailer.com/"><img src="https://raw.githubusercontent.com/lkaesberg/EmailBot/main/images/nodemailer.webp" alt="Nodemailer" style="height: 48px; width: auto;" title="Nodemailer"></a>
 </div>
 
 ## Statistics
 
-EmailVerify server count: <strong id="serverCount">0</strong><br>
-Users verified today: <strong id="todayMails">0</strong><br>
-Users verified all time: <strong id="allMails">0</strong>
+Server count: <strong id="serverCount">0</strong><br>
+Users verified: <strong id="verifiedToday">0</strong> today / <strong id="verifiedAll">0</strong> all time<br>
+Emails sent: <strong id="emailsToday">0</strong> today / <strong id="emailsAll">0</strong> all time
+
+[View detailed statistics →](statistics.md)
 
 ## Description
 
@@ -39,22 +42,23 @@ to invite the bot to your server
 
 <script>
 const serverCount = document.getElementById("serverCount");
-const mailsSendToday = document.getElementById("todayMails");
-const mailsSendAll = document.getElementById("allMails");
+const verifiedToday = document.getElementById("verifiedToday");
+const verifiedAll = document.getElementById("verifiedAll");
+const emailsToday = document.getElementById("emailsToday");
+const emailsAll = document.getElementById("emailsAll");
+
 function refreshData(){
-fetch('https://emailbotstats.larskaesberg.de/serverCount')
-  .then(response => response.json())
-  .then(data => serverCount.textContent = data);
-fetch('https://emailbotstats.larskaesberg.de/mailsSendToday')
-  .then(response => response.json())
-  .then(data => mailsSendToday.textContent = data);
-fetch('https://emailbotstats.larskaesberg.de/mailsSendAll')
-  .then(response => response.json())
-  .then(data => mailsSendAll.textContent = data);
+  fetch('https://emailbotstats.larskaesberg.de/stats/current')
+    .then(response => response.json())
+    .then(data => {
+      serverCount.textContent = data.serverCount;
+      verifiedToday.textContent = data.usersVerifiedToday;
+      verifiedAll.textContent = data.usersVerifiedAll;
+      emailsToday.textContent = data.mailsSendToday;
+      emailsAll.textContent = data.mailsSendAll;
+    })
+    .catch(() => {});
 }
 refreshData();
-setInterval(function (){
-refreshData();
-},10000);
-
+setInterval(refreshData, 10000);
 </script>

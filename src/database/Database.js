@@ -29,6 +29,75 @@ class Database {
         this.runMigration(6, () => {
             this.db.run("ALTER TABLE guilds ADD blacklist TEXT DEFAULT ''")
             })
+        this.runMigration(7, () => {
+            this.db.run("ALTER TABLE guilds ADD errorNotifyType TEXT DEFAULT 'owner'")
+            this.db.run("ALTER TABLE guilds ADD errorNotifyTarget TEXT DEFAULT ''")
+        })
+        this.runMigration(8, () => {
+            this.db.run(`CREATE TABLE IF NOT EXISTS guild_stats(
+                guildID TEXT PRIMARY KEY,
+                mailsSentTotal INTEGER DEFAULT 0,
+                mailsSentMonth INTEGER DEFAULT 0,
+                verificationsTotal INTEGER DEFAULT 0,
+                verificationsMonth INTEGER DEFAULT 0,
+                statsMonth TEXT DEFAULT ''
+            );`)
+        })
+        this.runMigration(9, () => {
+            // Rename language from 'france' to 'french'
+            this.db.run("UPDATE guilds SET language = 'french' WHERE language = 'france';")
+        })
+        this.runMigration(10, () => {
+            // Add domain-based roles support
+            // defaultRoles: JSON array of role IDs always assigned on verification
+            // domainRoles: JSON object mapping domain patterns to arrays of role IDs
+            this.db.run("ALTER TABLE guilds ADD defaultRoles TEXT DEFAULT '[]'")
+            this.db.run("ALTER TABLE guilds ADD domainRoles TEXT DEFAULT '{}'")
+            // Migrate existing verifiedrole to defaultRoles
+            this.db.each("SELECT guildid, verifiedrole FROM guilds WHERE verifiedrole IS NOT NULL AND verifiedrole != ''", (err, result) => {
+                if (!err && result && result.verifiedrole) {
+                    const defaultRoles = JSON.stringify([result.verifiedrole])
+                    this.db.run("UPDATE guilds SET defaultRoles = ? WHERE guildid = ?", [defaultRoles, result.guildid])
+                }
+            })
+        })
+        this.runMigration(11, () => {
+            // Migrate domains and blacklist from comma-separated strings to JSON arrays
+            this.db.each("SELECT guildid, domains, blacklist FROM guilds", (err, result) => {
+                if (!err && result) {
+                    // Convert domains from comma-separated to JSON
+                    let domainsJson = '[]'
+                    if (result.domains && result.domains.length > 0) {
+                        try {
+                            // Check if already JSON
+                            JSON.parse(result.domains)
+                            domainsJson = result.domains
+                        } catch {
+                            // Convert comma-separated to JSON array
+                            const domainsArray = result.domains.split(',').filter(d => d.length > 0)
+                            domainsJson = JSON.stringify(domainsArray)
+                        }
+                    }
+                    
+                    // Convert blacklist from comma-separated to JSON
+                    let blacklistJson = '[]'
+                    if (result.blacklist && result.blacklist.length > 0) {
+                        try {
+                            // Check if already JSON
+                            JSON.parse(result.blacklist)
+                            blacklistJson = result.blacklist
+                        } catch {
+                            // Convert comma-separated to JSON array
+                            const blacklistArray = result.blacklist.split(',').filter(b => b.length > 0)
+                            blacklistJson = JSON.stringify(blacklistArray)
+                        }
+                    }
+                    
+                    this.db.run("UPDATE guilds SET domains = ?, blacklist = ? WHERE guildid = ?", 
+                        [domainsJson, blacklistJson, result.guildid])
+                }
+            })
+        })
     }
 
     runMigration(version, migration) {
@@ -59,8 +128,8 @@ class Database {
 
     updateServerSettings(guildID, serverSettings) {
         this.db.run(
-            "INSERT OR REPLACE INTO guilds (guildid, domains, blacklist, verifiedrole, unverifiedrole, channelid, messageid, language, autoVerify, autoAddUnverified, verifyMessage, logChannel) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            [guildID, serverSettings.domains.toString(), serverSettings.blacklist.toString(), serverSettings.verifiedRoleName, serverSettings.unverifiedRoleName, serverSettings.channelID, serverSettings.messageID, serverSettings.language, serverSettings.autoVerify, serverSettings.autoAddUnverified, serverSettings.verifyMessage, serverSettings.logChannel])
+            "INSERT OR REPLACE INTO guilds (guildid, domains, blacklist, verifiedrole, unverifiedrole, channelid, messageid, language, autoVerify, autoAddUnverified, verifyMessage, logChannel, errorNotifyType, errorNotifyTarget, defaultRoles, domainRoles) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [guildID, JSON.stringify(serverSettings.domains), JSON.stringify(serverSettings.blacklist), serverSettings.verifiedRoleName, serverSettings.unverifiedRoleName, serverSettings.channelID, serverSettings.messageID, serverSettings.language, serverSettings.autoVerify, serverSettings.autoAddUnverified, serverSettings.verifyMessage, serverSettings.logChannel, serverSettings.errorNotifyType, serverSettings.errorNotifyTarget, JSON.stringify(serverSettings.defaultRoles), JSON.stringify(serverSettings.domainRoles)])
     }
 
     async getServerSettings(guildID, callback) {
@@ -78,9 +147,44 @@ class Database {
                     serverSettings.autoVerify = result.autoVerify
                     serverSettings.autoAddUnverified = result.autoAddUnverified
                     serverSettings.verifyMessage = result.verifyMessage
-                    serverSettings.domains = result.domains.split(",").filter((domain) => domain.length !== 0)
-                    serverSettings.blacklist = result.blacklist.split(",").filter((name) => name.length !== 0)
                     serverSettings.logChannel = result.logChannel
+                    serverSettings.errorNotifyType = result.errorNotifyType || "owner"
+                    serverSettings.errorNotifyTarget = result.errorNotifyTarget || ""
+                    
+                    // Parse domains (JSON array, with fallback for legacy comma-separated format)
+                    try {
+                        serverSettings.domains = result.domains ? JSON.parse(result.domains) : []
+                    } catch {
+                        // Fallback to comma-separated format for backward compatibility
+                        serverSettings.domains = result.domains ? result.domains.split(",").filter(d => d.length !== 0) : []
+                    }
+                    
+                    // Parse blacklist (JSON array, with fallback for legacy comma-separated format)
+                    try {
+                        serverSettings.blacklist = result.blacklist ? JSON.parse(result.blacklist) : []
+                    } catch {
+                        // Fallback to comma-separated format for backward compatibility
+                        serverSettings.blacklist = result.blacklist ? result.blacklist.split(",").filter(b => b.length !== 0) : []
+                    }
+                    
+                    // Parse defaultRoles (JSON array)
+                    try {
+                        serverSettings.defaultRoles = result.defaultRoles ? JSON.parse(result.defaultRoles) : []
+                    } catch {
+                        serverSettings.defaultRoles = []
+                    }
+                    
+                    // Parse domainRoles (JSON object)
+                    try {
+                        serverSettings.domainRoles = result.domainRoles ? JSON.parse(result.domainRoles) : {}
+                    } catch {
+                        serverSettings.domainRoles = {}
+                    }
+                    
+                    // Legacy migration: if defaultRoles is empty but verifiedRoleName exists, use it
+                    if (serverSettings.defaultRoles.length === 0 && serverSettings.verifiedRoleName) {
+                        serverSettings.defaultRoles = [serverSettings.verifiedRoleName]
+                    }
                 }
                 callback(serverSettings)
             }
@@ -103,6 +207,113 @@ class Database {
                 }
             }
         )
+    }
+
+    getCurrentMonth() {
+        const now = new Date()
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    }
+
+    getGuildStats(guildID, callback) {
+        const currentMonth = this.getCurrentMonth()
+        this.db.get("SELECT * FROM guild_stats WHERE guildID = ?", [guildID], (err, result) => {
+            if (err) {
+                console.error('Error getting guild stats:', err)
+                callback({ mailsSentTotal: 0, mailsSentMonth: 0, verificationsTotal: 0, verificationsMonth: 0 })
+                return
+            }
+            if (result === undefined) {
+                callback({ mailsSentTotal: 0, mailsSentMonth: 0, verificationsTotal: 0, verificationsMonth: 0 })
+                return
+            }
+            // Reset monthly counters if month changed
+            if (result.statsMonth !== currentMonth) {
+                callback({
+                    mailsSentTotal: result.mailsSentTotal,
+                    mailsSentMonth: 0,
+                    verificationsTotal: result.verificationsTotal,
+                    verificationsMonth: 0
+                })
+            } else {
+                callback({
+                    mailsSentTotal: result.mailsSentTotal,
+                    mailsSentMonth: result.mailsSentMonth,
+                    verificationsTotal: result.verificationsTotal,
+                    verificationsMonth: result.verificationsMonth
+                })
+            }
+        })
+    }
+
+    incrementMailsSent(guildID) {
+        const currentMonth = this.getCurrentMonth()
+        this.db.get("SELECT * FROM guild_stats WHERE guildID = ?", [guildID], (err, result) => {
+            if (err) {
+                console.error('Error incrementing mails sent:', err)
+                return
+            }
+            if (result === undefined) {
+                // Create new entry
+                this.db.run(
+                    "INSERT INTO guild_stats (guildID, mailsSentTotal, mailsSentMonth, verificationsTotal, verificationsMonth, statsMonth) VALUES (?, 1, 1, 0, 0, ?)",
+                    [guildID, currentMonth]
+                )
+            } else if (result.statsMonth !== currentMonth) {
+                // Reset monthly counter for new month
+                this.db.run(
+                    "UPDATE guild_stats SET mailsSentTotal = mailsSentTotal + 1, mailsSentMonth = 1, verificationsMonth = 0, statsMonth = ? WHERE guildID = ?",
+                    [currentMonth, guildID]
+                )
+            } else {
+                // Increment both counters
+                this.db.run(
+                    "UPDATE guild_stats SET mailsSentTotal = mailsSentTotal + 1, mailsSentMonth = mailsSentMonth + 1 WHERE guildID = ?",
+                    [guildID]
+                )
+            }
+        })
+    }
+
+    incrementVerifications(guildID) {
+        const currentMonth = this.getCurrentMonth()
+        this.db.get("SELECT * FROM guild_stats WHERE guildID = ?", [guildID], (err, result) => {
+            if (err) {
+                console.error('Error incrementing verifications:', err)
+                return
+            }
+            if (result === undefined) {
+                // Create new entry
+                this.db.run(
+                    "INSERT INTO guild_stats (guildID, mailsSentTotal, mailsSentMonth, verificationsTotal, verificationsMonth, statsMonth) VALUES (?, 0, 0, 1, 1, ?)",
+                    [guildID, currentMonth]
+                )
+            } else if (result.statsMonth !== currentMonth) {
+                // Reset monthly counter for new month
+                this.db.run(
+                    "UPDATE guild_stats SET verificationsTotal = verificationsTotal + 1, verificationsMonth = 1, mailsSentMonth = 0, statsMonth = ? WHERE guildID = ?",
+                    [currentMonth, guildID]
+                )
+            } else {
+                // Increment both counters
+                this.db.run(
+                    "UPDATE guild_stats SET verificationsTotal = verificationsTotal + 1, verificationsMonth = verificationsMonth + 1 WHERE guildID = ?",
+                    [guildID]
+                )
+            }
+        })
+    }
+
+    getAllGuildStats() {
+        return new Promise((resolve, reject) => {
+            this.db.all("SELECT * FROM guild_stats", [], (err, rows) => {
+                if (err) {
+                    console.error('Error getting all guild stats:', err)
+                    reject(err)
+                    return
+                }
+                resolve(rows || [])
+            })
+        })
     }
 }
 

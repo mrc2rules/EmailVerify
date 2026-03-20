@@ -1,39 +1,186 @@
 const {SlashCommandBuilder} = require('@discordjs/builders');
 const database = require("../database/Database");
-const { MessageFlags } = require('discord.js');
+const { MessageFlags, EmbedBuilder } = require('discord.js');
 
 module.exports = {
-    data: new SlashCommandBuilder().setDefaultPermission(true).setName('status').setDescription('returns whether the bot is properly configured or not').setDefaultMemberPermissions(0),
+    data: new SlashCommandBuilder().setDefaultPermission(true).setName('status').setDescription('View bot configuration, verification statistics, and check setup issues').setDefaultMemberPermissions(0),
+    
+    async getErrorNotifyStatus(guild, serverSettings) {
+        const notifyType = serverSettings.errorNotifyType || 'owner';
+        const notifyTarget = serverSettings.errorNotifyTarget || '';
+        
+        if (notifyType === 'owner') {
+            const owner = await guild.fetchOwner().catch(() => null);
+            return `📤 Sent to: **Server Owner** ${owner ? `(<@${owner.id}>)` : ''} via DM`;
+        } else if (notifyType === 'channel') {
+            const channel = guild.channels.cache.get(notifyTarget);
+            if (channel) {
+                return `📤 Sent to: **Channel** <#${channel.id}>`;
+            } else {
+                return `⚠️ Sent to: **Channel** (not found - will fallback to owner)`;
+            }
+        } else if (notifyType === 'user') {
+            const member = await guild.members.fetch(notifyTarget).catch(() => null);
+            if (member) {
+                return `📤 Sent to: **User** <@${member.id}> via DM`;
+            } else {
+                return `⚠️ Sent to: **User** (not found - will fallback to owner)`;
+            }
+        }
+        return '*Default (owner)*';
+    },
+    
     async execute(interaction) {
         await database.getServerSettings(interaction.guildId, async serverSettings => {
-            let response = "Configuration: " + (serverSettings.status ? "\:white_check_mark:\n" : "\:x: \n");
-            response += "ChannelID: " + serverSettings.channelID + "\n"
-            response += "MessageID: " + serverSettings.messageID + "\n"
-            try {
-                await interaction.client.channels.cache.get(serverSettings.channelID)?.messages.fetch(serverSettings.messageID)
-                response += "Message Found: \:white_check_mark:\n"
-            } catch {
-                response += "Message Found: \:x: \n"
-            }
-            response += "Domains: " + serverSettings.domains.toString().replaceAll(",", "|").replaceAll("*", "\\*") + "\n"
-            response += "Blacklisted: " + serverSettings.blacklist.toString().replaceAll(",", "|") + "\n"
-            let roleVerified = interaction.guild.roles.cache.find(r => r.id === serverSettings.verifiedRoleName)
-            if (roleVerified === undefined) {
-                response += "Verified role can not be found!\n"
-            } else {
-                response += "Verified role: " + roleVerified.name + "\n"
-            }
-            let roleUnverified = interaction.guild.roles.cache.find(r => r.id === serverSettings.unverifiedRoleName)
-            if (roleUnverified === undefined) {
-                response += "Unverified role is disabled\n"
-            } else {
-                response += "Unverified role: " + roleUnverified.name + "\n"
-            }
-            response += "Verify message: " + (serverSettings.verifyMessage ? serverSettings.verifyMessage : "Default") + "\n"
-            response += "Language: " + serverSettings.language + "\n"
-            response += "Auto add unverified role: " + (serverSettings.autoAddUnverified ? "Enabled" : "Disabled") + "\n"
-            response += "Auto verify: " + (serverSettings.autoVerify ? "Enabled" : "Disabled") + "\n"
-            await interaction.reply({content: response, flags: MessageFlags.Ephemeral})
+            // Get guild statistics
+            database.getGuildStats(interaction.guildId, async (guildStats) => {
+                const isConfigured = serverSettings.status
+                
+                // Check default roles
+                const defaultRoles = serverSettings.defaultRoles || []
+                const validDefaultRoles = defaultRoles
+                    .map(id => interaction.guild.roles.cache.get(id))
+                    .filter(role => role !== undefined)
+                
+                // Check domain roles
+                const domainRoles = serverSettings.domainRoles || {}
+                const domainRoleEntries = Object.entries(domainRoles)
+                
+                // Check unverified role
+                const roleUnverified = interaction.guild.roles.cache.find(r => r.id === serverSettings.unverifiedRoleName)
+                
+                // Check log channel
+                const logChannel = serverSettings.logChannel ? interaction.guild.channels.cache.get(serverSettings.logChannel) : null
+                
+                // Format domains
+                const domainsDisplay = serverSettings.domains.length > 0 
+                    ? serverSettings.domains.map(d => `\`${d.replaceAll("*", "✱")}\``).join(', ')
+                    : '*None configured*'
+                
+                // Format blacklist
+                const blacklistDisplay = serverSettings.blacklist.length > 0
+                    ? serverSettings.blacklist.map(b => `\`${b}\``).join(', ')
+                    : '*None*'
+                
+                // Format default roles
+                const defaultRolesDisplay = validDefaultRoles.length > 0
+                    ? validDefaultRoles.map(r => `<@&${r.id}>`).join(', ')
+                    : '❌ *None set*'
+                
+                // Format domain-specific roles
+                let domainRolesDisplay = '*None configured*'
+                if (domainRoleEntries.length > 0) {
+                    domainRolesDisplay = domainRoleEntries.map(([domain, roleIds]) => {
+                        const roles = roleIds
+                            .map(id => interaction.guild.roles.cache.get(id))
+                            .filter(r => r)
+                            .map(r => `<@&${r.id}>`)
+                            .join(', ')
+                        return `\`${domain.replaceAll("*", "✱")}\` → ${roles || '*invalid roles*'}`
+                    }).join('\n')
+                }
+                
+                // Determine status color and icon
+                const statusColor = isConfigured ? 0x57F287 : 0xED4245
+                const statusIcon = isConfigured ? '✅' : '❌'
+                const statusText = isConfigured ? 'Ready' : 'Not Configured'
+                
+                // Build issues list
+                const issues = []
+                const hasAnyRoles = validDefaultRoles.length > 0 || domainRoleEntries.length > 0
+                if (!hasAnyRoles) issues.push('• No verified roles configured (use `/role add` or `/domainrole add`)')
+                if (serverSettings.domains.length === 0) issues.push('• No email domains configured')
+                
+                // Get current month name for display
+                const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                                    'July', 'August', 'September', 'October', 'November', 'December']
+                const currentMonth = monthNames[new Date().getMonth()]
+                
+                const statusEmbed = new EmbedBuilder()
+                    .setTitle(`📊 Bot Status - ${statusIcon} ${statusText}`)
+                    .setColor(statusColor)
+                    .setThumbnail(interaction.guild.iconURL({ dynamic: true }))
+                    .addFields(
+                        {
+                            name: '🎭 Default Roles (all verified users)',
+                            value: defaultRolesDisplay,
+                            inline: false
+                        },
+                        {
+                            name: '🔗 Domain-Specific Roles',
+                            value: domainRolesDisplay,
+                            inline: false
+                        },
+                        {
+                            name: '👤 Unverified Role',
+                            value: roleUnverified ? `<@&${roleUnverified.id}>` : '➖ *Disabled*',
+                            inline: true
+                        },
+                        {
+                            name: '🌐 Language',
+                            value: `${serverSettings.language || 'english'}`,
+                            inline: true
+                        },
+                        {
+                            name: '📝 Log Channel',
+                            value: logChannel ? `<#${logChannel.id}>` : '*Disabled*',
+                            inline: true
+                        },
+                        {
+                            name: '📧 Allowed Domains',
+                            value: domainsDisplay
+                        },
+                        {
+                            name: '🚫 Blacklisted Emails',
+                            value: blacklistDisplay
+                        },
+                        {
+                            name: '📬 Emails Sent',
+                            value: 
+                                `**${currentMonth}:** ${guildStats.mailsSentMonth.toLocaleString()}\n` +
+                                `**Total:** ${guildStats.mailsSentTotal.toLocaleString()}`,
+                            inline: true
+                        },
+                        {
+                            name: '✅ Successful Verifications',
+                            value: 
+                                `**${currentMonth}:** ${guildStats.verificationsMonth.toLocaleString()}\n` +
+                                `**Total:** ${guildStats.verificationsTotal.toLocaleString()}`,
+                            inline: true
+                        },
+                        {
+                            name: '⚙️ Auto Settings',
+                            value: 
+                                `**Auto-verify on join:** ${serverSettings.autoVerify ? '✅ Enabled' : '❌ Disabled'}\n` +
+                                `**Auto-add unverified role:** ${serverSettings.autoAddUnverified ? '✅ Enabled' : '❌ Disabled'}`,
+                            inline: false
+                        },
+                        {
+                            name: '🔔 Error Notifications',
+                            value: await this.getErrorNotifyStatus(interaction.guild, serverSettings),
+                            inline: false
+                        },
+                        {
+                            name: '💬 Custom Verify Message',
+                            value: serverSettings.verifyMessage ? `"${serverSettings.verifyMessage}"` : '*Default message*'
+                        }
+                    )
+                
+                // Add issues field if there are problems
+                if (issues.length > 0) {
+                    statusEmbed.addFields({
+                        name: '⚠️ Issues to Fix',
+                        value: issues.join('\n')
+                    })
+                }
+                
+                statusEmbed.setFooter({ 
+                    text: `Server: ${interaction.guild.name}`,
+                    iconURL: interaction.guild.iconURL({ dynamic: true })
+                })
+                
+                await interaction.reply({ embeds: [statusEmbed], flags: MessageFlags.Ephemeral })
+            })
         })
     }
 }
