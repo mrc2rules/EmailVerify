@@ -443,4 +443,3 @@ bot.login(token).catch((e) => {
     console.log("Failed to login: " + e.toString())
     process.exitCode = 1;
 });
-ENDOFFILE

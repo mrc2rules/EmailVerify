@@ -159,7 +159,7 @@ module.exports = class MailSender {
           <!-- Title -->
           <tr>
             <td align="center" style="padding: 0 40px 24px;">
-              <h1 style="color: #FFD700; font-family: 'Poppins', Arial, sans-serif; font-size: 22px; font-weight: 700; margin: 0; line-height: 1.3;">Welcome to UTM Johor Bahru Community!</h1>
+              <h1 style="color: #E69305; font-family: 'Poppins', Arial, sans-serif; font-size: 22px; font-weight: 700; margin: 0; line-height: 1.3;">Welcome! Salam Sejahtara!</h1>
             </td>
           </tr>
 
@@ -173,10 +173,10 @@ module.exports = class MailSender {
 
               <!-- Code Block -->
               <div style="text-align: center; margin: 24px 0;">
-                <span style="display: inline-block; font-family: 'Poppins', Arial, sans-serif; font-size: 28px; letter-spacing: 6px; padding: 14px 28px; background: #5A001C; color: #FFD700; border: 1px solid #FFD700; border-radius: 8px; font-weight: 700;">${safeCode}</span>
+                <span style="display: inline-block; font-family: 'Poppins', Arial, sans-serif; font-size: 28px; letter-spacing: 6px; padding: 14px 28px; background: #5A001C; color: #E69305; border: 1px solid #E69305; border-radius: 8px; font-weight: 700;">${safeCode}</span>
               </div>
 
-              <p style="margin: 24px 0 0 0; color: #FFD700; font-weight: 600; font-size: 14px; text-align: center;">⚠️ Do NOT share this code with anyone other than the UTMJBC Bot.</p>
+              <p style="margin: 24px 0 0 0; color: #E69305; font-weight: 600; font-size: 14px; text-align: center;">⚠️  Do NOT share this code with anyone other than the UTMJBC Bot.</p>
             </td>
           </tr>
 
@@ -196,10 +196,10 @@ module.exports = class MailSender {
               <table border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto 16px;">
                 <tr>
                   <td style="padding: 0 12px;">
-                    <a href="https://utm.gitbook.io/" target="_blank" style="color: #FFD700; font-family: 'Poppins', Arial, sans-serif; font-size: 12px; font-weight: 600; text-decoration: none; border-bottom: 1px solid #FFD700; padding-bottom: 1px;">📖 Community Guide</a>
+                    <a href="https://utm.gitbook.io/" target="_blank" style="color: #E69305; font-family: 'Poppins', Arial, sans-serif; font-size: 12px; font-weight: 600; text-decoration: none; border-bottom: 1px solid #E69305; padding-bottom: 1px;">📖 Community Guide</a>
                   </td>
                   <td style="padding: 0 12px; border-left: 1px solid #5A001C;">
-                    <a href="https://discord.gg/vuGTVyFgck" target="_blank" style="color: #FFD700; font-family: 'Poppins', Arial, sans-serif; font-size: 12px; font-weight: 600; text-decoration: none; border-bottom: 1px solid #FFD700; padding-bottom: 1px;">💬 Join Discord</a>
+                    <a href="https://discord.gg/vuGTVyFgck" target="_blank" style="color: #E69305; font-family: 'Poppins', Arial, sans-serif; font-size: 12px; font-weight: 600; text-decoration: none; border-bottom: 1px solid #E69305; padding-bottom: 1px;">💬 Join Discord</a>
                   </td>
                 </tr>
               </table>

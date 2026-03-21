@@ -15,7 +15,7 @@
   "userEnterEmail": "Please enter your email address to verify %VAR%.",
   "userCantFindRole": "Cant find roles. Please contact the admin! Help: Ensure that the name is still the same and that the bot role is higher in the serversettings role menu then the verified and unverified role.",
   "emailSubject": "[UTMJBC] Your Discord verification code",
-  "emailSenderName": "UTMJBC✉️"
+  "emailSenderName": "UTMJBC✉️",
   "emailText": "Welcome! Salam Sejahtera!\n\nTo ensure that this is a safe space for UTM students only, we require new members to verify.\n\n Upon verification, you will gain access to a number of different channels; such as faculty channels, UTM discussion and so much more!\n\nYour verification code: %VAR%\n\nDo NOT share this code to anyone else other than the UTMJBC Bot.",
   "verifyEmbedTitle": "✉️ Email Verification",
   "verifyEmbedInstructions": "Click the button below to start the verification process. You will receive a code via email.\n\nAlready have a code? Use the **Enter Code** button.",
